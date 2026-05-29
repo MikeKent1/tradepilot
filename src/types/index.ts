@@ -12,6 +12,7 @@ export interface Portfolio {
   id: string;
   user_id: string;
   name: string;
+  mode: TradingMode;
   cash_balance: number;
   total_value: number;
   total_pnl: number;
@@ -48,6 +49,7 @@ export interface Trade {
   price: number;
   total: number;
   fee: number;
+  mode: TradingMode;
   pnl?: number;
   pnl_percent?: number;
   strategy_id?: string;
@@ -65,7 +67,6 @@ export interface WatchlistItem {
   price: number;
   change: number;
   change_percent: number;
-  volume?: string;
   added_at: string;
 }
 

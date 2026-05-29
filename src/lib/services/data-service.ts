@@ -115,7 +115,7 @@ export async function fetchTradesByStrategy(strategyId: string, mode: TradingMod
 
 export async function insertTrade(
   portfolioId: string,
-  trade: Omit<Trade, 'id' | 'portfolio_id' | 'created_at'>,
+  trade: Omit<Trade, 'id' | 'portfolio_id' | 'created_at' | 'mode'>,
   mode: TradingMode = 'paper',
 ) {
   const { data, error } = await supabase
@@ -285,6 +285,7 @@ function mapPortfolio(row: Record<string, unknown>): Portfolio {
     id: row.id as string,
     user_id: row.user_id as string,
     name: row.name as string,
+    mode: (row.mode as TradingMode) || 'paper',
     cash_balance: Number(row.cash_balance),
     total_value: Number(row.total_value),
     total_pnl: Number(row.total_pnl),
@@ -323,6 +324,7 @@ function mapTrade(row: Record<string, unknown>): Trade {
     price: Number(row.price),
     total: Number(row.total),
     fee: Number(row.fee),
+    mode: (row.mode as TradingMode) || 'paper',
     pnl: row.pnl != null ? Number(row.pnl) : undefined,
     pnl_percent: row.pnl_percent != null ? Number(row.pnl_percent) : undefined,
     strategy_id: row.strategy_id as string | undefined,

@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/auth/auth-provider';
 import * as dataService from '@/lib/services/data-service';
+import { useRealtime } from '@/lib/hooks/use-realtime';
 import type { Notification } from '@/types';
 
 export function useNotificationsData() {
@@ -16,7 +17,14 @@ export function useNotificationsData() {
       return dataService.fetchNotifications(user.id);
     },
     enabled: !!user?.id,
-    refetchInterval: 30_000, // poll every 30s
+  });
+
+  // ── Real-time: notification changes (replaces polling) ─
+  useRealtime({
+    table: 'notifications',
+    filter: user?.id ? `user_id=eq.${user.id}` : undefined,
+    queryKeys: user?.id ? [['notifications', user.id]] : [],
+    enabled: !!user?.id,
   });
 
   const markReadMutation = useMutation({

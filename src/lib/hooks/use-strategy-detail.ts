@@ -3,6 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useAppStore } from '@/stores/app-store';
 import * as dataService from '@/lib/services/data-service';
+import { useRealtime } from '@/lib/hooks/use-realtime';
 import type { Strategy, Trade } from '@/types';
 
 export function useStrategyDetail(strategyId: string | undefined) {
@@ -17,12 +18,28 @@ export function useStrategyDetail(strategyId: string | undefined) {
     enabled: !!strategyId,
   });
 
+  // ── Real-time: strategy changes ───────────────────────
+  useRealtime({
+    table: 'strategies',
+    filter: strategyId ? `id=eq.${strategyId}` : undefined,
+    queryKeys: strategyId ? [['strategy', strategyId]] : [],
+    enabled: !!strategyId,
+  });
+
   const tradesQuery = useQuery({
     queryKey: ['strategy-trades', strategyId, tradingMode],
     queryFn: async (): Promise<Trade[]> => {
       if (!strategyId) return [];
       return dataService.fetchTradesByStrategy(strategyId, tradingMode);
     },
+    enabled: !!strategyId,
+  });
+
+  // ── Real-time: trades for this strategy ───────────────
+  useRealtime({
+    table: 'trades',
+    filter: strategyId ? `strategy_id=eq.${strategyId}` : undefined,
+    queryKeys: strategyId ? [['strategy-trades', strategyId, tradingMode]] : [],
     enabled: !!strategyId,
   });
 

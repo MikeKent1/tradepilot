@@ -3,8 +3,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { useAppStore } from '@/stores/app-store';
-import { supabase } from '@/lib/supabase/client';
-import type { Trade, Portfolio } from '@/types';
+import * as dataService from '@/lib/services/data-service';
+import { useRealtime } from '@/lib/hooks/use-realtime';
+import type { Trade } from '@/types';
 
 export interface AnalyticsData {
   totalTrades: number;
@@ -54,45 +55,49 @@ export function useAnalyticsData() {
   // Fetch portfolio (for starting value in equity curve)
   const portfolioQuery = useQuery({
     queryKey: ['portfolio', user?.id, tradingMode],
-    queryFn: async (): Promise<Portfolio | null> => {
+    queryFn: () => {
       if (!user?.id) return null;
-      const { data } = await supabase
-        .from('portfolios')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('mode', tradingMode)
-        .single();
-      return data as Portfolio | null;
+      return dataService.fetchPortfolio(user.id, tradingMode);
     },
     enabled: !!user?.id,
   });
 
-  // Fetch all trades
+  // Fetch all trades (via data-service, then reverse for ascending order)
+  // ── Real-time: portfolio changes ──────────────────────
+  useRealtime({
+    table: 'portfolios',
+    filter: user?.id ? `user_id=eq.${user.id}` : undefined,
+    queryKeys: user?.id ? [['portfolio', user.id, tradingMode]] : [],
+    enabled: !!user?.id,
+  });
+
   const tradesQuery = useQuery({
     queryKey: ['analytics-trades', user?.id, tradingMode],
     queryFn: async (): Promise<Trade[]> => {
       if (!user?.id) return [];
 
-      // Find portfolio first
-      const { data: pf } = await supabase
-        .from('portfolios')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('mode', tradingMode)
-        .single();
+      const portfolio = await dataService.fetchPortfolio(user.id, tradingMode);
+      if (!portfolio) return [];
 
-      if (!pf) return [];
-
-      const { data } = await supabase
-        .from('trades')
-        .select('*')
-        .eq('portfolio_id', pf.id)
-        .eq('mode', tradingMode)
-        .order('executed_at', { ascending: true });
-
-      return (data || []) as unknown as Trade[];
+      // data-service returns newest-first; equity curve needs oldest-first
+      const trades = await dataService.fetchTrades(portfolio.id, tradingMode);
+      return trades.reverse();
     },
     enabled: !!user?.id,
+  });
+
+  // ── Real-time: trade changes for analytics ────────────
+  const portfolioId = portfolioQuery.data?.id;
+  const realtimeKeys: string[][] = [];
+  if (user?.id) {
+    realtimeKeys.push(['analytics-trades', user.id, tradingMode]);
+    realtimeKeys.push(['portfolio', user.id, tradingMode]);
+  }
+  useRealtime({
+    table: 'trades',
+    filter: portfolioId ? `portfolio_id=eq.${portfolioId}` : undefined,
+    queryKeys: realtimeKeys,
+    enabled: !!portfolioId,
   });
 
   const trades = tradesQuery.data || [];

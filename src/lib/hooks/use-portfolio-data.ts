@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/auth/auth-provider';
 import { useAppStore } from '@/stores/app-store';
 import * as dataService from '@/lib/services/data-service';
 import { useToast } from '@/lib/hooks/use-toast';
+import { useRealtime } from '@/lib/hooks/use-realtime';
 
 export function usePortfolioData() {
   const { user } = useAuth();
@@ -32,6 +33,22 @@ export function usePortfolioData() {
       if (!portfolioQuery.data?.id) return [];
       return dataService.fetchPositions(portfolioQuery.data.id);
     },
+    enabled: !!portfolioQuery.data?.id,
+  });
+
+  // ── Real-time: portfolio changes ──────────────────────
+  useRealtime({
+    table: 'portfolios',
+    filter: portfolioQuery.data?.id ? `id=eq.${portfolioQuery.data.id}` : undefined,
+    queryKeys: [['portfolio', user?.id, tradingMode]],
+    enabled: !!user?.id && !!portfolioQuery.data?.id,
+  });
+
+  // ── Real-time: position changes ───────────────────────
+  useRealtime({
+    table: 'positions',
+    filter: portfolioQuery.data?.id ? `portfolio_id=eq.${portfolioQuery.data.id}` : undefined,
+    queryKeys: [['positions', portfolioQuery.data?.id]],
     enabled: !!portfolioQuery.data?.id,
   });
 

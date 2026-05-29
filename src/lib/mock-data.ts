@@ -5,6 +5,7 @@ export const mockPortfolio: Portfolio = {
   id: 'pf-001',
   user_id: 'user-001',
   name: 'Default Portfolio',
+  mode: 'paper',
   cash_balance: 52450.75,
   total_value: 152450.75,
   total_pnl: 12450.75,
@@ -104,6 +105,7 @@ export const mockTrades: Trade[] = [
     price: 175.20,
     total: 8760.00,
     fee: 1.50,
+    mode: 'paper',
     executed_at: new Date(Date.now() - 7 * 86400000).toISOString(),
     created_at: new Date(Date.now() - 7 * 86400000).toISOString(),
   },
@@ -117,6 +119,7 @@ export const mockTrades: Trade[] = [
     price: 380.50,
     total: 7610.00,
     fee: 1.50,
+    mode: 'paper',
     executed_at: new Date(Date.now() - 5 * 86400000).toISOString(),
     created_at: new Date(Date.now() - 5 * 86400000).toISOString(),
   },
@@ -130,6 +133,7 @@ export const mockTrades: Trade[] = [
     price: 140.75,
     total: 4222.50,
     fee: 1.50,
+    mode: 'paper',
     executed_at: new Date(Date.now() - 3 * 86400000).toISOString(),
     created_at: new Date(Date.now() - 3 * 86400000).toISOString(),
   },
@@ -143,6 +147,7 @@ export const mockTrades: Trade[] = [
     price: 820.00,
     total: 8200.00,
     fee: 1.50,
+    mode: 'paper',
     executed_at: new Date(Date.now() - 2 * 86400000).toISOString(),
     created_at: new Date(Date.now() - 2 * 86400000).toISOString(),
   },
@@ -156,6 +161,7 @@ export const mockTrades: Trade[] = [
     price: 195.30,
     total: 7812.00,
     fee: 1.50,
+    mode: 'paper',
     executed_at: new Date(Date.now() - 86400000).toISOString(),
     created_at: new Date(Date.now() - 86400000).toISOString(),
   },
@@ -169,6 +175,7 @@ export const mockTrades: Trade[] = [
     price: 210.00,
     total: 2100.00,
     fee: 1.50,
+    mode: 'paper',
     pnl: 147.00,
     pnl_percent: 7.53,
     executed_at: new Date().toISOString(),
@@ -178,12 +185,12 @@ export const mockTrades: Trade[] = [
 
 // ─── Fake Watchlist ────────────────────────────────────────
 export const mockWatchlist: WatchlistItem[] = [
-  { id: 'wl-001', user_id: 'user-001', symbol: 'AMZN', name: 'Amazon.com Inc.', price: 185.67, change: 2.34, change_percent: 1.28, volume: '34.6M', added_at: new Date().toISOString() },
-  { id: 'wl-002', user_id: 'user-001', symbol: 'META', name: 'Meta Platforms Inc.', price: 504.22, change: 8.95, change_percent: 1.81, volume: '12.3M', added_at: new Date().toISOString() },
-  { id: 'wl-003', user_id: 'user-001', symbol: 'AMD', name: 'Advanced Micro Devices', price: 162.33, change: -2.45, change_percent: -1.49, volume: '45.7M', added_at: new Date().toISOString() },
-  { id: 'wl-004', user_id: 'user-001', symbol: 'JPM', name: 'JPMorgan Chase & Co.', price: 200.15, change: 0.85, change_percent: 0.43, volume: '18.9M', added_at: new Date().toISOString() },
-  { id: 'wl-005', user_id: 'user-001', symbol: 'V', name: 'Visa Inc.', price: 275.90, change: -1.20, change_percent: -0.43, volume: '22.1M', added_at: new Date().toISOString() },
-  { id: 'wl-006', user_id: 'user-001', symbol: 'NFLX', name: 'Netflix Inc.', price: 628.44, change: 12.30, change_percent: 2.00, volume: '15.4M', added_at: new Date().toISOString() },
+  { id: 'wl-001', user_id: 'user-001', symbol: 'AMZN', name: 'Amazon.com Inc.', price: 185.67, change: 2.34, change_percent: 1.28, added_at: new Date().toISOString() },
+  { id: 'wl-002', user_id: 'user-001', symbol: 'META', name: 'Meta Platforms Inc.', price: 504.22, change: 8.95, change_percent: 1.81, added_at: new Date().toISOString() },
+  { id: 'wl-003', user_id: 'user-001', symbol: 'AMD', name: 'Advanced Micro Devices', price: 162.33, change: -2.45, change_percent: -1.49, added_at: new Date().toISOString() },
+  { id: 'wl-004', user_id: 'user-001', symbol: 'JPM', name: 'JPMorgan Chase & Co.', price: 200.15, change: 0.85, change_percent: 0.43, added_at: new Date().toISOString() },
+  { id: 'wl-005', user_id: 'user-001', symbol: 'V', name: 'Visa Inc.', price: 275.90, change: -1.20, change_percent: -0.43, added_at: new Date().toISOString() },
+  { id: 'wl-006', user_id: 'user-001', symbol: 'NFLX', name: 'Netflix Inc.', price: 628.44, change: 12.30, change_percent: 2.00, added_at: new Date().toISOString() },
 ];
 
 // ─── Fake Market Assets ────────────────────────────────────
@@ -228,10 +235,30 @@ export const mockStrategies: Strategy[] = [
     id: 'str-002',
     user_id: 'user-001',
     name: 'RSI Mean Reversion',
-    description: 'Buy when RSI(14) drops below 30, sell when crosses above 70.',
+    description: 'Buy when RSI oversold (<30), sell when overbought (>70)',
     type: 'technical',
-    status: 'draft',
+    status: 'active',
     config: { rsi_period: 14, oversold: 30, overbought: 70 },
+    performance: {
+      total_trades: 18,
+      win_rate: 0.555,
+      avg_pnl: 97.20,
+      total_pnl: 1749.60,
+      total_pnl_percent: 6.2,
+      sharpe_ratio: 0.98,
+      max_drawdown: -8.1,
+    },
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: 'str-003',
+    user_id: 'user-001',
+    name: 'Breakout Momentum',
+    description: 'Buy on breakout above resistance with high volume confirmation',
+    type: 'quant',
+    status: 'draft',
+    config: { volume_threshold: 2.0, lookback_days: 20 },
     performance: {
       total_trades: 0,
       win_rate: 0,
@@ -244,93 +271,52 @@ export const mockStrategies: Strategy[] = [
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   },
-  {
-    id: 'str-003',
-    user_id: 'user-001',
-    name: 'Buy & Hold S&P',
-    description: 'Simple buy and hold strategy on top S&P 500 stocks.',
-    type: 'fundamental',
-    status: 'paused',
-    config: { rebalance_frequency: 'quarterly' },
-    performance: {
-      total_trades: 8,
-      win_rate: 0.75,
-      avg_pnl: 520.25,
-      total_pnl: 4162.00,
-      total_pnl_percent: 12.3,
-      sharpe_ratio: 1.85,
-      max_drawdown: -3.8,
-    },
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
 ];
 
 // ─── Fake Notifications ────────────────────────────────────
 export const mockNotifications: Notification[] = [
-  { id: 'not-001', type: 'success', title: 'Trade Executed', message: 'Bought 50 shares of AAPL at $175.20', timestamp: new Date(Date.now() - 3600000).toISOString(), read: false },
-  { id: 'not-002', type: 'info', title: 'Price Alert', message: 'NVDA crossed above $940 for the first time.', timestamp: new Date(Date.now() - 7200000).toISOString(), read: false },
-  { id: 'not-003', type: 'warning', title: 'Stop Loss Warning', message: 'TSLA is down 6% from your entry price.', timestamp: new Date(Date.now() - 86400000).toISOString(), read: true },
-  { id: 'not-004', type: 'success', title: 'Dividend Received', message: 'AAPL paid dividend of $24.00 for your 50 shares.', timestamp: new Date(Date.now() - 172800000).toISOString(), read: true },
-  { id: 'not-005', type: 'info', title: 'Strategy Update', message: 'Moving Average Crossover strategy completed 24 trades with 62.5% win rate.', timestamp: new Date(Date.now() - 259200000).toISOString(), read: true },
+  { id: 'not-001', type: 'success', title: 'Trade Executed', message: 'Buy 50 shares of AAPL at $175.20 executed successfully.', timestamp: new Date().toISOString(), read: false },
+  { id: 'not-002', type: 'warning', title: 'Margin Warning', message: 'Your margin usage has exceeded 70%. Consider reducing positions.', timestamp: new Date(Date.now() - 3600000).toISOString(), read: false },
+  { id: 'not-003', type: 'info', title: 'Strategy Updated', message: 'Moving Average Crossover strategy parameters have been updated.', timestamp: new Date(Date.now() - 7200000).toISOString(), read: true },
+  { id: 'not-004', type: 'success', title: 'Dividend Received', message: 'AAPL dividend of $0.25/share ($12.50 total) has been credited.', timestamp: new Date(Date.now() - 86400000).toISOString(), read: true },
+  { id: 'not-005', type: 'error', title: 'Order Failed', message: 'Sell order for TSLA at $220.00 failed: insufficient volume.', timestamp: new Date(Date.now() - 172800000).toISOString(), read: true },
 ];
 
-// ─── Fake Candlestick Data ─────────────────────────────────
-function generateCandlestickData(symbol: string, days: number): CandlestickData[] {
-  const data: CandlestickData[] = [];
-  let price = symbol === 'NVDA' ? 850 : symbol === 'AAPL' ? 185 : 150;
-  const now = new Date();
-
+// ─── Chart Helpers ─────────────────────────────────────────
+export function generatePortfolioHistory(days = 30) {
+  const data: { date: string; value: number }[] = [];
+  let value = 135000;
   for (let i = days; i >= 0; i--) {
-    const date = new Date(now);
+    const date = new Date();
     date.setDate(date.getDate() - i);
-    const volatility = price * 0.02;
-    const open = price + (Math.random() - 0.5) * volatility;
-    const close = open + (Math.random() - 0.45) * volatility * 1.5;
-    const high = Math.max(open, close) + Math.random() * volatility;
-    const low = Math.min(open, close) - Math.random() * volatility;
-    const volume = Math.floor(Math.random() * 10000000) + 5000000;
-
-    data.push({
-      time: date.toISOString().split('T')[0],
-      open: +open.toFixed(2),
-      high: +high.toFixed(2),
-      low: +low.toFixed(2),
-      close: +close.toFixed(2),
-      volume,
-    });
-
-    price = close;
+    value += (Math.random() - 0.45) * 2000;
+    data.push({ date: date.toISOString().split('T')[0], value: Math.round(value * 100) / 100 });
   }
-
   return data;
 }
 
-export const mockCandlestickData: Record<string, CandlestickData[]> = {
-  AAPL: generateCandlestickData('AAPL', 90),
-  NVDA: generateCandlestickData('NVDA', 90),
-  MSFT: generateCandlestickData('MSFT', 90),
-  GOOGL: generateCandlestickData('GOOGL', 90),
-  TSLA: generateCandlestickData('TSLA', 90),
-};
-
-// ─── Fake Portfolio History ────────────────────────────────
-export function generatePortfolioHistory(days: number) {
-  const history = [];
-  let value = 100000;
-  const now = new Date();
+export function generateCandlestickData(symbol: string, days = 90): CandlestickData[] {
+  const data: CandlestickData[] = [];
+  let price = symbol === 'NVDA' ? 900 : symbol === 'AAPL' ? 180 : 200;
 
   for (let i = days; i >= 0; i--) {
-    const date = new Date(now);
+    const date = new Date();
     date.setDate(date.getDate() - i);
-    const change = value * (Math.random() - 0.48) * 0.03;
-    value += change;
-
-    history.push({
-      date: date.toISOString().split('T')[0],
-      value: +value.toFixed(2),
+    const volatility = price * 0.025;
+    const open = price + (Math.random() - 0.5) * volatility;
+    const close = open + (Math.random() - 0.5) * volatility;
+    const high = Math.max(open, close) + Math.random() * volatility * 0.5;
+    const low = Math.min(open, close) - Math.random() * volatility * 0.5;
+    const volume = Math.floor(Math.random() * 5000000 + 1000000);
+    data.push({
+      time: date.toISOString().split('T')[0],
+      open: Math.round(open * 100) / 100,
+      high: Math.round(high * 100) / 100,
+      low: Math.round(low * 100) / 100,
+      close: Math.round(close * 100) / 100,
+      volume,
     });
+    price = close;
   }
-
-  return history;
+  return data;
 }

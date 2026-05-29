@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/auth/auth-provider';
 import * as dataService from '@/lib/services/data-service';
 import { useToast } from '@/lib/hooks/use-toast';
+import { useRealtime } from '@/lib/hooks/use-realtime';
 import type { WatchlistItem } from '@/types';
 
 export function useWatchlistData() {
@@ -17,6 +18,14 @@ export function useWatchlistData() {
       if (!user?.id) return [];
       return dataService.fetchWatchlist(user.id);
     },
+    enabled: !!user?.id,
+  });
+
+  // ── Real-time: watchlist changes ──────────────────────
+  useRealtime({
+    table: 'watchlists',
+    filter: user?.id ? `user_id=eq.${user.id}` : undefined,
+    queryKeys: user?.id ? [['watchlist', user.id]] : [],
     enabled: !!user?.id,
   });
 

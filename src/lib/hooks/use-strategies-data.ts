@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/auth/auth-provider';
 import * as dataService from '@/lib/services/data-service';
+import { useRealtime } from '@/lib/hooks/use-realtime';
 import { useToast } from '@/lib/hooks/use-toast';
 import type { Strategy } from '@/types';
 
@@ -17,6 +18,14 @@ export function useStrategiesData() {
       if (!user?.id) return [];
       return dataService.fetchStrategies(user.id);
     },
+    enabled: !!user?.id,
+  });
+
+  // ── Real-time: strategy changes ───────────────────────
+  useRealtime({
+    table: 'strategies',
+    filter: user?.id ? `user_id=eq.${user.id}` : undefined,
+    queryKeys: user?.id ? [['strategies', user.id]] : [],
     enabled: !!user?.id,
   });
 
