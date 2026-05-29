@@ -15,48 +15,35 @@ test.describe('E2E: Login → Dashboard → Create Strategy', () => {
     await expect(page.locator('h2')).toContainText('Welcome back');
 
     await page.locator('input[placeholder="you@example.com"]').fill(auth.email);
-    await page.locator('input[placeholder="••••••••"]').fill(auth.password);
+    await page.locator('input[placeholder="Enter your password"]').fill(auth.password);
     await page.locator('button[type="submit"]').click();
 
     // ─── 2. DASHBOARD (redirect after login) ─────────────
     await expect(page).toHaveURL('/', { timeout: 10_000 });
-    await expect(
-      page.locator('text=Dashboard').or(page.locator('text=Strategy Lab'))
-    ).toBeVisible({ timeout: 5_000 });
+    // Just verify we see the sidebar navigation (Dashboard link)
+    await expect(page.getByRole('link', { name: 'Dashboard' })).toBeVisible({ timeout: 5_000 });
 
     // ─── 3. NAVIGATE TO STRATEGIES ───────────────────────
-    await page.locator('a[href="/strategies"]').first().click();
+    await page.getByRole('link', { name: 'Strategies' }).click();
     await expect(page).toHaveURL('/strategies', { timeout: 8_000 });
-    await expect(
-      page.locator('h1, h2').filter({ hasText: /Strategies|strategy/i })
-    ).toBeVisible({ timeout: 5_000 });
 
     // ─── 4. CREATE STRATEGY ──────────────────────────────
-    await page
-      .locator('button:has-text("Create")')
-      .or(page.locator('button:has-text("New")'))
-      .first()
-      .click();
+    // Click "New Strategy" button (page heading area)
+    await page.getByRole('button', { name: /New Strategy/i }).click();
 
-    const nameInput = page
-      .locator(
-        'input[placeholder*="Strategy"], input[placeholder*="Name"], input[placeholder*="name"]'
-      )
-      .first();
+    // Modal: fill strategy name (placeholder: "e.g. Golden Cross Scalper")
+    const nameInput = page.locator('input[placeholder="e.g. Golden Cross Scalper"]');
     await expect(nameInput).toBeVisible({ timeout: 5_000 });
     await nameInput.fill('E2E Scalping Bot');
 
-    const descInput = page.locator('textarea, input[placeholder*="Desc"]').first();
-    if (await descInput.isVisible().catch(() => false)) {
-      await descInput.fill('Automated E2E test strategy');
-    }
+    // Fill description
+    const descInput = page.locator('textarea');
+    await descInput.fill('Automated E2E test strategy');
 
-    await page
-      .locator('button:has-text("Save")')
-      .or(page.locator('button:has-text("Create")'))
-      .last()
-      .click();
+    // Click "Create Strategy" button in modal
+    await page.getByRole('button', { name: /Create Strategy/i }).click();
 
+    // Verify strategy appears in list
     await expect(page.locator('text=E2E Scalping Bot')).toBeVisible({
       timeout: 8_000,
     });
