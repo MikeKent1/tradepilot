@@ -40,7 +40,7 @@ export function usePortfolioData() {
   useRealtime({
     table: 'portfolios',
     filter: portfolioQuery.data?.id ? `id=eq.${portfolioQuery.data.id}` : undefined,
-    queryKeys: [['portfolio', user?.id, tradingMode]],
+    queryKeys: [['portfolio', user?.id ?? '', tradingMode]],
     enabled: !!user?.id && !!portfolioQuery.data?.id,
   });
 
@@ -48,7 +48,7 @@ export function usePortfolioData() {
   useRealtime({
     table: 'positions',
     filter: portfolioQuery.data?.id ? `portfolio_id=eq.${portfolioQuery.data.id}` : undefined,
-    queryKeys: [['positions', portfolioQuery.data?.id]],
+    queryKeys: [['positions', portfolioQuery.data?.id ?? '']],
     enabled: !!portfolioQuery.data?.id,
   });
 

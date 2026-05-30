@@ -305,12 +305,8 @@ function toWatchlistItem(
     price: data.price,
     change: data.change,
     change_percent: data.change_percent,
-    volume:
-      data.volume >= 1_000_000
-        ? `${(data.volume / 1_000_000).toFixed(1)}M`
-        : data.volume.toLocaleString(),
     added_at: new Date().toISOString(),
-  };
+  } as WatchlistItem;
 }
 
 // ─── Page component ─────────────────────────────────────────
@@ -769,7 +765,7 @@ export default function MarketPage() {
                     <td className={`py-2 px-2 text-right font-medium ${pnlColor(item.change_percent)}`}>
                       {formatPercent(item.change_percent)}
                     </td>
-                    <td className="py-2 px-2 text-right text-zinc-400 text-xs">{item.volume}</td>
+                    <td className="py-2 px-2 text-right text-zinc-400 text-xs">—</td>
                   </tr>
                 ))}
               </tbody>

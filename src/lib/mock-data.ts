@@ -218,7 +218,7 @@ export const mockStrategies: Strategy[] = [
     description: 'Buy when 50-day MA crosses above 200-day MA, sell when crosses below.',
     type: 'technical',
     status: 'active',
-    config: { fast_period: 50, slow_period: 200 },
+    config: { type: 'trend_following', timeframes: ['1d'], symbols: ['AAPL', 'SPY'], indicators: ['sma'], entryRules: [{ type: 'indicator_cross', description: '50/200 golden cross', params: { indicator: 'sma', condition: 'crosses_above', period: 50, secondaryPeriod: 200 } }], exitRules: [{ type: 'indicator_signal', description: 'Death cross exit', params: { indicator: 'sma', condition: 'crosses_below', period: 50, secondaryPeriod: 200 } }], riskPerTrade: 2, maxPositions: 3 },
     performance: {
       total_trades: 24,
       win_rate: 0.625,
@@ -238,7 +238,7 @@ export const mockStrategies: Strategy[] = [
     description: 'Buy when RSI oversold (<30), sell when overbought (>70)',
     type: 'technical',
     status: 'active',
-    config: { rsi_period: 14, oversold: 30, overbought: 70 },
+    config: { type: 'mean_reversion', timeframes: ['1h', '4h'], symbols: ['TSLA', 'NVDA'], indicators: ['rsi', 'bollinger'], entryRules: [{ type: 'indicator_cross', description: 'RSI oversold bounce', params: { indicator: 'rsi', condition: 'below', threshold: 30, period: 14 } }], exitRules: [{ type: 'take_profit', description: 'Exit at upper BB', params: { percent: 5 } }, { type: 'stop_loss', description: '2% SL', params: { percent: 2 } }], riskPerTrade: 1, maxPositions: 5 },
     performance: {
       total_trades: 18,
       win_rate: 0.555,
@@ -258,7 +258,7 @@ export const mockStrategies: Strategy[] = [
     description: 'Buy on breakout above resistance with high volume confirmation',
     type: 'quant',
     status: 'draft',
-    config: { volume_threshold: 2.0, lookback_days: 20 },
+    config: { type: 'breakout', timeframes: ['15m', '1h'], symbols: ['META', 'AMZN'], indicators: ['volume', 'ema'], entryRules: [{ type: 'price_level', description: 'Break above 20-day high with volume', params: { direction: 'breakout_above', level: 0 } }], exitRules: [{ type: 'trailing_stop', description: '3% trailing stop', params: { percent: 3, activationPercent: 1.5 } }], riskPerTrade: 1.5, maxPositions: 4 },
     performance: {
       total_trades: 0,
       win_rate: 0,

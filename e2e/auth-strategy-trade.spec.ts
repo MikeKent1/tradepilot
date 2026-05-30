@@ -40,8 +40,8 @@ test.describe('E2E: Login → Dashboard → Create Strategy', () => {
     const descInput = page.locator('textarea');
     await descInput.fill('Automated E2E test strategy');
 
-    // Click "Create Strategy" button in modal
-    await page.getByRole('button', { name: /Create Strategy/i }).click();
+    // Click "Create Strategy" button inside the modal (the last one on the page)
+    await page.getByRole('button', { name: /Create Strategy/i }).last().click();
 
     // Verify strategy appears in list
     await expect(page.locator('text=E2E Scalping Bot')).toBeVisible({

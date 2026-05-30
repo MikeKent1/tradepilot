@@ -27,6 +27,10 @@ import {
   AlertTriangle,
   ChevronDown,
   ChevronRight,
+  RotateCw,
+  Settings2,
+  Calendar,
+  DollarSign,
 } from 'lucide-react';
 import type { Strategy, Trade } from '@/types';
 
@@ -180,7 +184,7 @@ function EquityCurve({
 
 // ─── Config editor (collapsible JSON) ─────────────────────
 
-function ConfigPanel({ config }: { config: Record<string, unknown> }) {
+function ConfigPanel({ config }: { config: Strategy['config'] }) {
   const [expanded, setExpanded] = useState(false);
 
   return (
@@ -264,6 +268,422 @@ function TradesTable({ trades }: { trades: Trade[] }) {
         <p className="text-xs text-zinc-500 mt-2 text-center">
           Showing 50 of {trades.length} trades
         </p>
+      )}
+    </div>
+  );
+}
+
+// ─── Backtest types & helpers ───────────────────────────
+
+interface BacktestResult {
+  totalReturn: number;
+  totalReturnPercent: number;
+  totalTrades: number;
+  winRate: number;
+  profitFactor: number;
+  maxDrawdown: number;
+  maxDrawdownPercent: number;
+  sharpeRatio: number;
+  avgWin: number;
+  avgLoss: number;
+  bestTrade: number;
+  worstTrade: number;
+  equityCurve: { day: number; value: number }[];
+  monthlyReturns: { month: string; return: number }[];
+}
+
+function generateMockBacktest(
+  initialCapital: number,
+  slippage: number,
+  commission: number,
+): BacktestResult {
+  const days = 252; // 1 trading year
+  const seed = initialCapital * 0.003;
+  let equity = initialCapital;
+  let peak = initialCapital;
+  let maxDD = 0;
+
+  const curve: { day: number; value: number }[] = [{ day: 0, value: initialCapital }];
+
+  let totalTrades = 0;
+  let wins = 0;
+  let grossProfit = 0;
+  let grossLoss = 0;
+  let bestTrade = -Infinity;
+  let worstTrade = Infinity;
+
+  const dailyReturns: number[] = [];
+  const monthlyPnl: Record<string, number> = {};
+
+  for (let d = 1; d <= days; d++) {
+    const date = new Date(2025, 0, 1);
+    date.setDate(date.getDate() + d);
+    const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+
+    // Simulate 0-3 trades per day
+    const tradesToday = Math.random() < 0.6 ? Math.floor(Math.random() * 3) + 1 : 0;
+    let dailyPnl = 0;
+
+    for (let t = 0; t < tradesToday; t++) {
+      totalTrades++;
+      const base = initialCapital * 0.02;
+      const rawPnl = (Math.random() - 0.45) * base; // slight positive bias
+      const cost = commission * 2 + Math.abs(rawPnl) * (slippage / 100);
+      const netPnl = rawPnl - cost;
+
+      dailyPnl += netPnl;
+
+      if (netPnl > 0) {
+        wins++;
+        grossProfit += netPnl;
+      } else {
+        grossLoss += Math.abs(netPnl);
+      }
+      if (netPnl > bestTrade) bestTrade = netPnl;
+      if (netPnl < worstTrade) worstTrade = netPnl;
+    }
+
+    equity += dailyPnl;
+    curve.push({ day: d, value: Math.round(equity * 100) / 100 });
+
+    if (equity > peak) peak = equity;
+    const dd = peak > 0 ? ((peak - equity) / peak) * 100 : 0;
+    if (dd > maxDD) maxDD = dd;
+
+    if (tradesToday > 0) {
+      const prevDay = curve[curve.length - 2];
+      if (prevDay && prevDay.value > 0) {
+        dailyReturns.push((equity - prevDay.value) / prevDay.value);
+      }
+    }
+    monthlyPnl[monthKey] = (monthlyPnl[monthKey] ?? 0) + dailyPnl;
+  }
+
+  const totalReturn = equity - initialCapital;
+  const totalReturnPercent = (totalReturn / initialCapital) * 100;
+  const winRate = totalTrades > 0 ? wins / totalTrades : 0;
+  const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? Infinity : 0;
+  const avgWin = wins > 0 ? grossProfit / wins : 0;
+  const avgLoss = totalTrades - wins > 0 ? grossLoss / (totalTrades - wins) : 0;
+
+  const avgDailyReturn = dailyReturns.length > 0
+    ? dailyReturns.reduce((s, r) => s + r, 0) / dailyReturns.length
+    : 0;
+  const stdDaily = dailyReturns.length > 1
+    ? Math.sqrt(dailyReturns.reduce((s, r) => s + (r - avgDailyReturn) ** 2, 0) / (dailyReturns.length - 1))
+    : 0;
+  const sharpeRatio = stdDaily > 0 ? (avgDailyReturn / stdDaily) * Math.sqrt(252) : 0;
+
+  const monthlyReturns = Object.entries(monthlyPnl).map(([month, pnl]) => ({
+    month,
+    return: Math.round((pnl / initialCapital) * 10000) / 100,
+  }));
+
+  return {
+    totalReturn: Math.round(totalReturn * 100) / 100,
+    totalReturnPercent: Math.round(totalReturnPercent * 100) / 100,
+    totalTrades,
+    winRate: Math.round(winRate * 1000) / 10,
+    profitFactor: Math.round(profitFactor * 100) / 100,
+    maxDrawdown: Math.round(maxDD * 100) / 100,
+    maxDrawdownPercent: Math.round(maxDD * 100) / 100,
+    sharpeRatio: Math.round(sharpeRatio * 100) / 100,
+    avgWin: Math.round(avgWin * 100) / 100,
+    avgLoss: Math.round(avgLoss * 100) / 100,
+    bestTrade: Math.round(bestTrade * 100) / 100,
+    worstTrade: Math.round(worstTrade * 100) / 100,
+    equityCurve: curve,
+    monthlyReturns,
+  };
+}
+
+// ─── Backtest equity curve SVG ───────────────────────────
+
+function BacktestCurve({
+  data,
+  initialCapital,
+  width = 800,
+  height = 260,
+}: {
+  data: { day: number; value: number }[];
+  initialCapital: number;
+  width?: number;
+  height?: number;
+}) {
+  const chart = useMemo(() => {
+    if (!data.length) return null;
+
+    const values = data.map((d) => d.value);
+    let minVal = Math.min(initialCapital, ...values);
+    let maxVal = Math.max(initialCapital, ...values);
+    const pad = (maxVal - minVal) * 0.1 || initialCapital * 0.05;
+    minVal -= pad;
+    maxVal += pad;
+
+    const margin = { top: 12, bottom: 32, left: 70, right: 20 };
+    const chartW = width - margin.left - margin.right;
+    const chartH = height - margin.top - margin.bottom;
+
+    const xScale = (i: number) => margin.left + (i / (data.length - 1)) * chartW;
+    const yScale = (v: number) => margin.top + ((maxVal - v) / (maxVal - minVal)) * chartH;
+
+    const linePath = data
+      .map((p, i) => `${i === 0 ? 'M' : 'L'}${xScale(i)},${yScale(p.value)}`)
+      .join(' ');
+
+    const areaPath = [
+      ...data.map((p, i) => `${i === 0 ? 'M' : 'L'}${xScale(i)},${yScale(p.value)}`),
+      `L${xScale(data.length - 1)},${yScale(minVal)}`,
+      `L${xScale(0)},${yScale(minVal)}`,
+      'Z',
+    ].join(' ');
+
+    // Color based on performance
+    const finalVal = data[data.length - 1].value;
+    const color = finalVal >= initialCapital ? '#22c55e' : '#ef4444';
+
+    return { linePath, areaPath, minVal, maxVal, margin, yScale, color, xScale };
+  }, [data, initialCapital, width, height]);
+
+  if (!chart) return null;
+
+  const { margin, color } = chart;
+  const yTicks = [chart.minVal, initialCapital, chart.maxVal].filter(
+    (v) => v >= chart.minVal && v <= chart.maxVal,
+  );
+
+  return (
+    <svg viewBox={`0 0 ${width} ${height}`} width="100%" height={height} className="select-none">
+      {/* Grid lines */}
+      {yTicks.map((v) => (
+        <line
+          key={`grid-${v}`}
+          x1={margin.left}
+          x2={width - margin.right}
+          y1={chart.yScale(v)}
+          y2={chart.yScale(v)}
+          stroke={v === initialCapital ? '#374151' : '#27273f'}
+          strokeDasharray={v === initialCapital ? '4 4' : '2 2'}
+          strokeWidth={v === initialCapital ? 1 : 0.5}
+        />
+      ))}
+
+      {/* Area */}
+      <path d={chart.areaPath} fill={color} opacity={0.1} />
+
+      {/* Line */}
+      <path d={chart.linePath} fill="none" stroke={color} strokeWidth={2} strokeLinejoin="round" />
+
+      {/* Y-axis labels */}
+      {yTicks.map((v) => (
+        <text
+          key={`yl-${v}`}
+          x={margin.left - 6}
+          y={chart.yScale(v) + 4}
+          textAnchor="end"
+          fill={v === initialCapital ? '#9ca3af' : '#6b6b80'}
+          fontSize="9"
+        >
+          {v >= 1000 ? `$${(v / 1000).toFixed(1)}k` : formatCurrency(v)}
+        </text>
+      ))}
+
+      {/* X-axis: month labels */}
+      {[0, 63, 126, 189, 252].map((d) => (
+        <text
+          key={`xl-${d}`}
+          x={chart.xScale(d)}
+          y={height - 8}
+          textAnchor="middle"
+          fill="#6b6b80"
+          fontSize="9"
+        >
+          {d === 0 ? 'Jan' : d === 63 ? 'Apr' : d === 126 ? 'Jul' : d === 189 ? 'Oct' : 'Dec'}
+        </text>
+      ))}
+    </svg>
+  );
+}
+
+// ─── Backtest Panel ──────────────────────────────────────
+
+function BacktestPanel({ strategy }: { strategy: Strategy }) {
+  const [initialCapital, setInitialCapital] = useState(10000);
+  const [slippage, setSlippage] = useState(0.1);
+  const [commission, setCommission] = useState(1.0);
+  const [result, setResult] = useState<BacktestResult | null>(null);
+  const [running, setRunning] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+
+  const handleRun = useCallback(() => {
+    setRunning(true);
+    // Simulate async processing delay
+    setTimeout(() => {
+      setResult(generateMockBacktest(initialCapital, slippage, commission));
+      setRunning(false);
+    }, 1200);
+  }, [initialCapital, slippage, commission]);
+
+  return (
+    <div className="space-y-4">
+      {/* Controls bar */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <Button
+          size="sm"
+          onClick={handleRun}
+          disabled={running}
+          className="flex items-center gap-1.5"
+        >
+          {running ? (
+            <>
+              <Loader2 className="w-3.5 h-3.5 animate-spin" /> Running...
+            </>
+          ) : (
+            <>
+              <RotateCw className="w-3.5 h-3.5" /> {result ? 'Re-run Backtest' : 'Run Backtest'}
+            </>
+          )}
+        </Button>
+
+        <button
+          onClick={() => setShowSettings(!showSettings)}
+          className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer"
+        >
+          <Settings2 className="w-3.5 h-3.5" />
+          {showSettings ? 'Hide' : 'Settings'}
+        </button>
+
+        {result && (
+          <span
+            className={`text-xs font-medium ml-auto ${result.totalReturn >= 0 ? 'text-emerald-400' : 'text-red-400'}`}
+          >
+            Return: {result.totalReturn >= 0 ? '+' : ''}
+            {result.totalReturnPercent}% ({formatCurrency(result.totalReturn)})
+          </span>
+        )}
+      </div>
+
+      {/* Settings panel */}
+      {showSettings && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 rounded-lg bg-card border border-card-border">
+          <div>
+            <label className="flex items-center gap-1.5 text-[10px] text-zinc-500 uppercase tracking-wider mb-1.5">
+              <DollarSign className="w-3 h-3" /> Initial Capital
+            </label>
+            <input
+              type="number"
+              value={initialCapital}
+              onChange={(e) => setInitialCapital(Number(e.target.value) || 10000)}
+              min={1000}
+              step={1000}
+              className="w-full bg-background border border-card-border rounded-lg px-3 py-1.5 text-sm text-zinc-200 focus:outline-none focus:border-accent/50"
+            />
+          </div>
+          <div>
+            <label className="flex items-center gap-1.5 text-[10px] text-zinc-500 uppercase tracking-wider mb-1.5">
+              <TrendingUp className="w-3 h-3" /> Slippage (%)
+            </label>
+            <input
+              type="number"
+              value={slippage}
+              onChange={(e) => setSlippage(Number(e.target.value) || 0)}
+              min={0}
+              max={5}
+              step={0.05}
+              className="w-full bg-background border border-card-border rounded-lg px-3 py-1.5 text-sm text-zinc-200 focus:outline-none focus:border-accent/50"
+            />
+          </div>
+          <div>
+            <label className="flex items-center gap-1.5 text-[10px] text-zinc-500 uppercase tracking-wider mb-1.5">
+              <DollarSign className="w-3 h-3" /> Commission ($)
+            </label>
+            <input
+              type="number"
+              value={commission}
+              onChange={(e) => setCommission(Number(e.target.value) || 0)}
+              min={0}
+              max={50}
+              step={0.5}
+              className="w-full bg-background border border-card-border rounded-lg px-3 py-1.5 text-sm text-zinc-200 focus:outline-none focus:border-accent/50"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Results */}
+      {result && (
+        <>
+          {/* Metrics grid */}
+          <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+            <div className="p-3 rounded-lg bg-card border border-card-border text-center">
+              <p className="text-[9px] text-zinc-500 uppercase tracking-wider">Return %</p>
+              <p className={`text-sm font-bold mt-0.5 ${result.totalReturn >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                {result.totalReturn >= 0 ? '+' : ''}{result.totalReturnPercent}%
+              </p>
+            </div>
+            <div className="p-3 rounded-lg bg-card border border-card-border text-center">
+              <p className="text-[9px] text-zinc-500 uppercase tracking-wider">Sharpe</p>
+              <p className="text-sm font-bold text-zinc-200 mt-0.5">{result.sharpeRatio}</p>
+            </div>
+            <div className="p-3 rounded-lg bg-card border border-card-border text-center">
+              <p className="text-[9px] text-zinc-500 uppercase tracking-wider">Max DD</p>
+              <p className="text-sm font-bold text-red-400 mt-0.5">-{result.maxDrawdownPercent}%</p>
+            </div>
+            <div className="p-3 rounded-lg bg-card border border-card-border text-center">
+              <p className="text-[9px] text-zinc-500 uppercase tracking-wider">Trades</p>
+              <p className="text-sm font-bold text-zinc-200 mt-0.5">{result.totalTrades}</p>
+            </div>
+            <div className="p-3 rounded-lg bg-card border border-card-border text-center">
+              <p className="text-[9px] text-zinc-500 uppercase tracking-wider">Win Rate</p>
+              <p className="text-sm font-bold text-zinc-200 mt-0.5">{result.winRate}%</p>
+            </div>
+            <div className="p-3 rounded-lg bg-card border border-card-border text-center">
+              <p className="text-[9px] text-zinc-500 uppercase tracking-wider">Profit Factor</p>
+              <p className="text-sm font-bold text-zinc-200 mt-0.5">{result.profitFactor}</p>
+            </div>
+          </div>
+
+          {/* Detailed stats row */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            <div className="flex justify-between p-2 rounded bg-card border border-card-border text-xs">
+              <span className="text-zinc-500">Avg Win</span>
+              <span className="text-emerald-400 font-mono">{formatCurrency(result.avgWin)}</span>
+            </div>
+            <div className="flex justify-between p-2 rounded bg-card border border-card-border text-xs">
+              <span className="text-zinc-500">Avg Loss</span>
+              <span className="text-red-400 font-mono">{formatCurrency(result.avgLoss)}</span>
+            </div>
+            <div className="flex justify-between p-2 rounded bg-card border border-card-border text-xs">
+              <span className="text-zinc-500">Best Trade</span>
+              <span className="text-emerald-400 font-mono">{formatCurrency(result.bestTrade)}</span>
+            </div>
+            <div className="flex justify-between p-2 rounded bg-card border border-card-border text-xs">
+              <span className="text-zinc-500">Worst Trade</span>
+              <span className="text-red-400 font-mono">{formatCurrency(result.worstTrade)}</span>
+            </div>
+          </div>
+
+          {/* Equity curve */}
+          <div className="rounded-lg bg-card border border-card-border p-3">
+            <BacktestCurve data={result.equityCurve} initialCapital={initialCapital} />
+          </div>
+
+          {/* Monthly returns heatmap */}
+          <div className="flex flex-wrap gap-1.5">
+            {result.monthlyReturns.map((m) => (
+              <div
+                key={m.month}
+                className={`px-2 py-1 rounded text-[10px] font-mono border ${
+                  m.return >= 0
+                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                    : 'bg-red-500/10 text-red-400 border-red-500/20'
+                }`}
+              >
+                {m.month}: {m.return >= 0 ? '+' : ''}{m.return}%
+              </div>
+            ))}
+          </div>
+        </>
       )}
     </div>
   );
@@ -549,6 +969,19 @@ export default function StrategyDetailPage() {
         </CardHeader>
         <CardContent>
           <ConfigPanel config={strategy.config} />
+        </CardContent>
+      </Card>
+
+      {/* Backtest Panel */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <RotateCw className="w-4 h-4 text-accent" />
+            Strategy Backtest
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <BacktestPanel strategy={strategy} />
         </CardContent>
       </Card>
 

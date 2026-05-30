@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase/client';
-import type { Portfolio, Position, Trade, WatchlistItem, Strategy, TradingMode } from '@/types';
+import type { Portfolio, Position, Trade, WatchlistItem, Strategy, StrategyConfig, TradingMode } from '@/types';
 
 // ─── Portfolio ───────────────────────────────────────────
 export async function fetchPortfolio(userId: string, mode: TradingMode = 'paper'): Promise<Portfolio | null> {
@@ -355,7 +355,7 @@ function mapStrategy(row: Record<string, unknown>): Strategy {
     description: row.description as string | undefined,
     type: row.type as string,
     status: row.status as 'draft' | 'active' | 'paused' | 'archived',
-    config: row.config as Record<string, unknown>,
+    config: (row.config ?? {}) as StrategyConfig,
     performance: {
       total_trades: Number(row.total_trades ?? 0),
       win_rate: Number(row.win_rate ?? 0),
