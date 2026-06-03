@@ -32,9 +32,11 @@ import {
   PieChart as PieChartIcon,
   Activity,
   Target,
+  HandCoins,
 } from 'lucide-react';
+import { FundsModal } from '@/components/portfolio/funds-modal';
 
-// ─── Constants ──────────────────────────────────────────
+// --- Constants ------------------------------------------------------------
 
 const COLORS = [
   '#6366f1', // indigo
@@ -59,16 +61,24 @@ type SortField =
   | 'unrealized_pnl_percent';
 type SortDir = 'asc' | 'desc';
 
-// ─── Page component ─────────────────────────────────────
+// --- Page component -------------------------------------------------------
 
 export default function PortfolioPage() {
-  const { portfolio, positions } = usePortfolioData();
+  const {
+    portfolio,
+    positions,
+    deposit,
+    withdraw,
+    isDepositing,
+    isWithdrawing,
+  } = usePortfolioData();
   const { data: trades = [] } = useTrades(portfolio?.id);
 
   const [sortField, setSortField] = useState<SortField>('market_value');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
+  const [fundsModalOpen, setFundsModalOpen] = useState(false);
 
-  // ── Derived Metrics ────────────────────────────────────
+  // -- Derived Metrics ------------------------------------------------------
   const portfolioValue = portfolio?.total_value ?? 0;
   const portfolioPnl = portfolio?.total_pnl ?? 0;
   const portfolioPnlPercent = portfolio?.total_pnl_percent ?? 0;
@@ -100,7 +110,7 @@ export default function PortfolioPage() {
     return (wins / pnlTrades.length) * 100;
   }, [trades]);
 
-  // ── Pie data ───────────────────────────────────────────
+  // -- Pie data -------------------------------------------------------------
   const pieData = useMemo(() => {
     const data = positions.map((p, i) => ({
       name: p.symbol,
@@ -124,7 +134,7 @@ export default function PortfolioPage() {
 
   const totalPie = pieData.reduce((sum, s) => sum + s.value, 0) || 1;
 
-  // ── Sorted positions ───────────────────────────────────
+  // -- Sorted positions -----------------------------------------------------
   const sortedPositions = useMemo(() => {
     return [...positions].sort((a, b) => {
       const aVal = a[sortField];
@@ -151,7 +161,7 @@ export default function PortfolioPage() {
     return sortDir === 'asc' ? ' ▲' : ' ▼';
   }
 
-  // ── History chart ──────────────────────────────────────
+  // -- History chart --------------------------------------------------------
   const history = useMemo(() => generatePortfolioHistory(30), []);
 
   return (
@@ -165,6 +175,13 @@ export default function PortfolioPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            variant="secondary"
+            onClick={() => setFundsModalOpen(true)}
+          >
+            <HandCoins className="w-4 h-4" />
+            Manage Funds
+          </Button>
           <Link href="/trades">
             <Button variant="primary">
               <Plus className="w-4 h-4" />
@@ -468,6 +485,17 @@ export default function PortfolioPage() {
           </span>
         </CardHeader>
         <CardContent>
+          {/* Funds Modal */}
+          <FundsModal
+            open={fundsModalOpen}
+            onClose={() => setFundsModalOpen(false)}
+            cashBalance={cashBalance}
+            onDeposit={deposit}
+            onWithdraw={withdraw}
+            isDepositing={isDepositing}
+            isWithdrawing={isWithdrawing}
+          />
+
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>

@@ -36,6 +36,16 @@ export function usePortfolioData() {
     enabled: !!portfolioQuery.data?.id,
   });
 
+  // ── Transactions query ────────────────────────────────
+  const transactionsQuery = useQuery({
+    queryKey: ['transactions', portfolioQuery.data?.id],
+    queryFn: async () => {
+      if (!portfolioQuery.data?.id) return [];
+      return dataService.fetchTransactions(portfolioQuery.data.id);
+    },
+    enabled: !!portfolioQuery.data?.id,
+  });
+
   // ── Real-time: portfolio changes ──────────────────────
   useRealtime({
     table: 'portfolios',
@@ -49,6 +59,16 @@ export function usePortfolioData() {
     table: 'positions',
     filter: portfolioQuery.data?.id ? `portfolio_id=eq.${portfolioQuery.data.id}` : undefined,
     queryKeys: [['positions', portfolioQuery.data?.id ?? '']],
+    enabled: !!portfolioQuery.data?.id,
+  });
+
+  // ── Real-time: transaction changes ────────────────────
+  useRealtime({
+    table: 'transactions',
+    filter: portfolioQuery.data?.id
+      ? `portfolio_id=eq.${portfolioQuery.data.id}`
+      : undefined,
+    queryKeys: [['transactions', portfolioQuery.data?.id ?? '']],
     enabled: !!portfolioQuery.data?.id,
   });
 
@@ -186,15 +206,69 @@ export function usePortfolioData() {
     },
   });
 
+  // ── Deposit mutation ──────────────────────────────────
+  const depositMutation = useMutation({
+    mutationFn: async (amount: number) => {
+      const portfolio = portfolioQuery.data;
+      if (!portfolio || !user?.id) throw new Error('No portfolio found');
+      const result = await dataService.depositFunds(
+        portfolio.id,
+        user.id,
+        amount,
+        portfolio.cash_balance,
+        tradingMode,
+      );
+      return result;
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['portfolio', user?.id, tradingMode] });
+      queryClient.invalidateQueries({ queryKey: ['transactions', portfolioQuery.data?.id] });
+      addToast(`Deposited $${result.newBalance.toLocaleString()}`, 'success');
+    },
+    onError: (error: Error) => {
+      addToast(error.message, 'error');
+    },
+  });
+
+  // ── Withdraw mutation ─────────────────────────────────
+  const withdrawMutation = useMutation({
+    mutationFn: async (amount: number) => {
+      const portfolio = portfolioQuery.data;
+      if (!portfolio || !user?.id) throw new Error('No portfolio found');
+      const result = await dataService.withdrawFunds(
+        portfolio.id,
+        user.id,
+        amount,
+        portfolio.cash_balance,
+        tradingMode,
+      );
+      return result;
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['portfolio', user?.id, tradingMode] });
+      queryClient.invalidateQueries({ queryKey: ['transactions', portfolioQuery.data?.id] });
+      addToast(`Withdrew $${result.newBalance.toLocaleString()}`, 'success');
+    },
+    onError: (error: Error) => {
+      addToast(error.message, 'error');
+    },
+  });
+
   return {
     portfolio: portfolioQuery.data ?? null,
     positions: positionsQuery.data ?? [],
+    transactions: transactionsQuery.data ?? [],
     isLoading: portfolioQuery.isLoading || positionsQuery.isLoading,
     executeTrade: executeTradeMutation.mutate,
     isExecuting: executeTradeMutation.isPending,
+    deposit: depositMutation.mutate,
+    withdraw: withdrawMutation.mutate,
+    isDepositing: depositMutation.isPending,
+    isWithdrawing: withdrawMutation.isPending,
     refetch: () => {
       portfolioQuery.refetch();
       positionsQuery.refetch();
+      transactionsQuery.refetch();
     },
   };
 }

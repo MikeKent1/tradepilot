@@ -21,6 +21,22 @@ export interface Portfolio {
   updated_at: string;
 }
 
+// ─── Transaction (Deposit / Withdraw) ─────────────────────
+export type TransactionType = 'deposit' | 'withdraw';
+
+export interface Transaction {
+  id: string;
+  portfolio_id: string;
+  user_id: string;
+  type: TransactionType;
+  amount: number;
+  balance_before: number;
+  balance_after: number;
+  notes?: string;
+  mode: TradingMode;
+  created_at: string;
+}
+
 // ─── Position ───────────────────────────────────────────────
 export interface Position {
   id: string;
@@ -217,6 +233,120 @@ export interface OrderBook {
 
 // ─── Trading Mode ───────────────────────────────────────────
 export type TradingMode = 'paper' | 'live';
+
+// ─── Live Trading Signals ────────────────────────────────────
+
+export type SignalType = 'buy' | 'sell';
+
+export type SignalStatus = 'pending' | 'executed' | 'rejected';
+
+export interface LiveSignal {
+  id: string;
+  strategyId: string;
+  symbol: string;
+  type: SignalType;
+  price: number;
+  quantity: number;
+  confidence: number; // 0-1, how strong the signal is based on rule matches
+  reason: string;
+  timestamp: string;
+  acknowledged: boolean;
+  executed: boolean;
+  status?: SignalStatus;       // outcome of risk validation / execution
+  rejectedReason?: string;     // why the signal was rejected (risk rule name)
+  tradeId?: string;
+}
+
+export interface LiveStrategyState {
+  strategyId: string;
+  status: 'idle' | 'running' | 'paused' | 'error';
+  lastTickAt: string | null;
+  nextTickAt: string | null;
+  tickIntervalMs: number;
+  error: string | null;
+  openPositions: number;
+  signalsToday: number;
+  lastSignal: LiveSignal | null;
+  symbolsWatching: string[];
+}
+
+// ─── Advanced Risk Management Types ────────────────────
+
+/** Correlation matrix entry for a pair of symbols */
+export interface CorrelationPair {
+  symbolA: string;
+  symbolB: string;
+  correlation: number; // -1 to 1
+  lookbackDays: number;
+  updatedAt: string;
+}
+
+/** Portfolio-level risk metrics */
+export interface PortfolioRiskMetrics {
+  /** Value at Risk at specified confidence level (e.g., 95%) */
+  varDaily: number;
+  varWeekly: number;
+  varConfidence: number; // e.g., 0.95
+  /** Maximum drawdown from peak */
+  maxDrawdown: number; // percentage, negative number
+  maxDrawdownDollar: number;
+  /** Current drawdown from peak */
+  currentDrawdown: number;
+  /** Sharpe ratio */
+  sharpeRatio: number;
+  /** Portfolio concentration per sector/symbol */
+  concentration: Array<{
+    symbol: string;
+    weight: number; // fraction of portfolio
+    correlatedGroup?: string;
+  }>;
+  /** Kelly Criterion suggested bet size */
+  kellyFraction: number; // fraction of capital, 0 = disabled
+  /** Number of highly correlated position pairs */
+  correlatedPairs: number;
+}
+
+/** Circuit breaker state */
+export type CircuitBreakerReason =
+  | 'daily_loss'
+  | 'weekly_loss'
+  | 'drawdown'
+  | 'volatility_spike'
+  | 'position_flood'
+  | 'market_event'
+  | 'consecutive_losses';
+
+export interface CircuitBreakerState {
+  isTripped: boolean;
+  reason: CircuitBreakerReason | null;
+  trippedAt: string | null;
+  cooldownMinutes: number;
+  resumeAt: string | null;
+}
+
+/** Extended risk configuration */
+export interface AdvancedRiskConfig {
+  /** VaR confidence level (e.g., 0.95 for 95%) */
+  varConfidence?: number;
+  /** Maximum correlation allowed before blocking trades (e.g., 0.7) */
+  maxCorrelation?: number;
+  /** Enable Kelly Criterion position sizing (overrides riskPerTrade) */
+  useKellyCriterion?: boolean;
+  /** Kelly fraction multiplier (0.5 = half-Kelly, safer) */
+  kellyFraction?: number;
+  /** Portfolio-level max drawdown (percentage, negative, e.g., -0.15 = -15%) */
+  portfolioMaxDrawdown?: number;
+  /** Max daily loss percentage of capital (e.g., -0.03 = -3%) */
+  maxDailyLossPercent?: number;
+  /** Max weekly loss percentage of capital */
+  maxWeeklyLossPercent?: number;
+  /** Max consecutive losses before circuit breaker */
+  maxConsecutiveLosses?: number;
+  /** VIX threshold for volatility circuit breaker */
+  vixThreshold?: number;
+  /** Cooldown minutes after circuit breaker trips */
+  circuitBreakerCooldown?: number;
+}
 
 // ─── UI State ───────────────────────────────────────────────
 export interface Notification {

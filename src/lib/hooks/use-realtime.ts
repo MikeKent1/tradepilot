@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase/client';
 
-type RealtimeTable = 'portfolios' | 'positions' | 'trades' | 'watchlists' | 'strategies' | 'notifications';
+type RealtimeTable = 'portfolios' | 'positions' | 'trades' | 'watchlists' | 'strategies' | 'notifications' | 'transactions';
 
 interface UseRealtimeOptions {
   /** Table to subscribe to */

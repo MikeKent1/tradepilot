@@ -29,10 +29,10 @@ import {
   ChevronRight,
   RotateCw,
   Settings2,
-  Calendar,
   DollarSign,
 } from 'lucide-react';
 import type { Strategy, Trade } from '@/types';
+import type { BacktestResult as ApiBacktestResult } from '@/lib/services/strategy-engine';
 
 const typeIcons: Record<string, React.ReactNode> = {
   trend_following: <TrendingUp className="w-5 h-5" />,
@@ -273,9 +273,9 @@ function TradesTable({ trades }: { trades: Trade[] }) {
   );
 }
 
-// ─── Backtest types & helpers ───────────────────────────
+// ─── Backtest UI types ──────────────────────────────────
 
-interface BacktestResult {
+interface BacktestResultUI {
   totalReturn: number;
   totalReturnPercent: number;
   totalTrades: number;
@@ -292,106 +292,48 @@ interface BacktestResult {
   monthlyReturns: { month: string; return: number }[];
 }
 
-function generateMockBacktest(
+/** Transform engine BacktestResult → UI format */
+function mapEngineResult(
+  api: ApiBacktestResult,
   initialCapital: number,
-  slippage: number,
-  commission: number,
-): BacktestResult {
-  const days = 252; // 1 trading year
-  const seed = initialCapital * 0.003;
-  let equity = initialCapital;
-  let peak = initialCapital;
-  let maxDD = 0;
+): BacktestResultUI {
+  const m = api.metrics;
+  const totalReturn = m.totalPnl;
+  const totalReturnPercent = m.totalPnlPercent;
 
-  const curve: { day: number; value: number }[] = [{ day: 0, value: initialCapital }];
-
-  let totalTrades = 0;
-  let wins = 0;
-  let grossProfit = 0;
-  let grossLoss = 0;
-  let bestTrade = -Infinity;
-  let worstTrade = Infinity;
-
-  const dailyReturns: number[] = [];
-  const monthlyPnl: Record<string, number> = {};
-
-  for (let d = 1; d <= days; d++) {
-    const date = new Date(2025, 0, 1);
-    date.setDate(date.getDate() + d);
-    const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-
-    // Simulate 0-3 trades per day
-    const tradesToday = Math.random() < 0.6 ? Math.floor(Math.random() * 3) + 1 : 0;
-    let dailyPnl = 0;
-
-    for (let t = 0; t < tradesToday; t++) {
-      totalTrades++;
-      const base = initialCapital * 0.02;
-      const rawPnl = (Math.random() - 0.45) * base; // slight positive bias
-      const cost = commission * 2 + Math.abs(rawPnl) * (slippage / 100);
-      const netPnl = rawPnl - cost;
-
-      dailyPnl += netPnl;
-
-      if (netPnl > 0) {
-        wins++;
-        grossProfit += netPnl;
-      } else {
-        grossLoss += Math.abs(netPnl);
-      }
-      if (netPnl > bestTrade) bestTrade = netPnl;
-      if (netPnl < worstTrade) worstTrade = netPnl;
-    }
-
-    equity += dailyPnl;
-    curve.push({ day: d, value: Math.round(equity * 100) / 100 });
-
-    if (equity > peak) peak = equity;
-    const dd = peak > 0 ? ((peak - equity) / peak) * 100 : 0;
-    if (dd > maxDD) maxDD = dd;
-
-    if (tradesToday > 0) {
-      const prevDay = curve[curve.length - 2];
-      if (prevDay && prevDay.value > 0) {
-        dailyReturns.push((equity - prevDay.value) / prevDay.value);
-      }
-    }
-    monthlyPnl[monthKey] = (monthlyPnl[monthKey] ?? 0) + dailyPnl;
-  }
-
-  const totalReturn = equity - initialCapital;
-  const totalReturnPercent = (totalReturn / initialCapital) * 100;
-  const winRate = totalTrades > 0 ? wins / totalTrades : 0;
-  const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? Infinity : 0;
-  const avgWin = wins > 0 ? grossProfit / wins : 0;
-  const avgLoss = totalTrades - wins > 0 ? grossLoss / (totalTrades - wins) : 0;
-
-  const avgDailyReturn = dailyReturns.length > 0
-    ? dailyReturns.reduce((s, r) => s + r, 0) / dailyReturns.length
-    : 0;
-  const stdDaily = dailyReturns.length > 1
-    ? Math.sqrt(dailyReturns.reduce((s, r) => s + (r - avgDailyReturn) ** 2, 0) / (dailyReturns.length - 1))
-    : 0;
-  const sharpeRatio = stdDaily > 0 ? (avgDailyReturn / stdDaily) * Math.sqrt(252) : 0;
-
-  const monthlyReturns = Object.entries(monthlyPnl).map(([month, pnl]) => ({
-    month,
-    return: Math.round((pnl / initialCapital) * 10000) / 100,
+  // Build equity curve: map date index → day number
+  const curve = api.equityCurve.map((pt, i) => ({
+    day: i,
+    value: pt.equity,
   }));
+
+  // Monthly returns from trades
+  const monthlyMap: Record<string, number> = {};
+  for (const t of api.trades) {
+    const d = new Date(t.exitDate);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    monthlyMap[key] = (monthlyMap[key] ?? 0) + t.pnl;
+  }
+  const monthlyReturns = Object.entries(monthlyMap)
+    .map(([month, pnl]) => ({
+      month,
+      return: Math.round((pnl / initialCapital) * 10000) / 100,
+    }))
+    .sort((a, b) => a.month.localeCompare(b.month));
 
   return {
     totalReturn: Math.round(totalReturn * 100) / 100,
     totalReturnPercent: Math.round(totalReturnPercent * 100) / 100,
-    totalTrades,
-    winRate: Math.round(winRate * 1000) / 10,
-    profitFactor: Math.round(profitFactor * 100) / 100,
-    maxDrawdown: Math.round(maxDD * 100) / 100,
-    maxDrawdownPercent: Math.round(maxDD * 100) / 100,
-    sharpeRatio: Math.round(sharpeRatio * 100) / 100,
-    avgWin: Math.round(avgWin * 100) / 100,
-    avgLoss: Math.round(avgLoss * 100) / 100,
-    bestTrade: Math.round(bestTrade * 100) / 100,
-    worstTrade: Math.round(worstTrade * 100) / 100,
+    totalTrades: m.totalTrades,
+    winRate: Math.round(m.winRate * 1000) / 10,
+    profitFactor: Math.round(m.profitFactor * 100) / 100,
+    maxDrawdown: Math.round(m.maxDrawdown * 100) / 100,
+    maxDrawdownPercent: Math.round(m.maxDrawdown * 100) / 100,
+    sharpeRatio: Math.round(m.sharpeRatio * 100) / 100,
+    avgWin: Math.round(m.avgWin * 100) / 100,
+    avgLoss: Math.round(m.avgLoss * 100) / 100,
+    bestTrade: Math.round(m.bestTrade.pnl * 100) / 100,
+    worstTrade: Math.round(m.worstTrade.pnl * 100) / 100,
     equityCurve: curve,
     monthlyReturns,
   };
@@ -509,20 +451,39 @@ function BacktestCurve({
 
 function BacktestPanel({ strategy }: { strategy: Strategy }) {
   const [initialCapital, setInitialCapital] = useState(10000);
-  const [slippage, setSlippage] = useState(0.1);
-  const [commission, setCommission] = useState(1.0);
-  const [result, setResult] = useState<BacktestResult | null>(null);
+  const [result, setResult] = useState<BacktestResultUI | null>(null);
   const [running, setRunning] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
 
-  const handleRun = useCallback(() => {
+  const handleRun = useCallback(async () => {
     setRunning(true);
-    // Simulate async processing delay
-    setTimeout(() => {
-      setResult(generateMockBacktest(initialCapital, slippage, commission));
+    setError(null);
+    try {
+      const res = await fetch('/api/strategies/backtest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          config: strategy.config,
+          symbol: strategy.config.symbols?.[0] ?? 'AAPL',
+          days: 365,
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json.error ?? 'Backtest failed');
+      }
+
+      const rawResult = json.results?.[strategy.config.symbols?.[0] ?? 'AAPL'] ?? json;
+      setResult(mapEngineResult(rawResult as ApiBacktestResult, initialCapital));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error');
+      setResult(null);
+    } finally {
       setRunning(false);
-    }, 1200);
-  }, [initialCapital, slippage, commission]);
+    }
+  }, [strategy.config, initialCapital]);
 
   return (
     <div className="space-y-4">
@@ -565,7 +526,7 @@ function BacktestPanel({ strategy }: { strategy: Strategy }) {
 
       {/* Settings panel */}
       {showSettings && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 rounded-lg bg-card border border-card-border">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 rounded-lg bg-card border border-card-border">
           <div>
             <label className="flex items-center gap-1.5 text-[10px] text-zinc-500 uppercase tracking-wider mb-1.5">
               <DollarSign className="w-3 h-3" /> Initial Capital
@@ -579,34 +540,19 @@ function BacktestPanel({ strategy }: { strategy: Strategy }) {
               className="w-full bg-background border border-card-border rounded-lg px-3 py-1.5 text-sm text-zinc-200 focus:outline-none focus:border-accent/50"
             />
           </div>
-          <div>
-            <label className="flex items-center gap-1.5 text-[10px] text-zinc-500 uppercase tracking-wider mb-1.5">
-              <TrendingUp className="w-3 h-3" /> Slippage (%)
-            </label>
-            <input
-              type="number"
-              value={slippage}
-              onChange={(e) => setSlippage(Number(e.target.value) || 0)}
-              min={0}
-              max={5}
-              step={0.05}
-              className="w-full bg-background border border-card-border rounded-lg px-3 py-1.5 text-sm text-zinc-200 focus:outline-none focus:border-accent/50"
-            />
+          <div className="flex items-end pb-0.5">
+            <p className="text-[11px] text-zinc-500 leading-relaxed">
+              Runs 1 year of simulated data using the strategy&rsquo;s configuration.
+            </p>
           </div>
-          <div>
-            <label className="flex items-center gap-1.5 text-[10px] text-zinc-500 uppercase tracking-wider mb-1.5">
-              <DollarSign className="w-3 h-3" /> Commission ($)
-            </label>
-            <input
-              type="number"
-              value={commission}
-              onChange={(e) => setCommission(Number(e.target.value) || 0)}
-              min={0}
-              max={50}
-              step={0.5}
-              className="w-full bg-background border border-card-border rounded-lg px-3 py-1.5 text-sm text-zinc-200 focus:outline-none focus:border-accent/50"
-            />
-          </div>
+        </div>
+      )}
+
+      {/* Error message */}
+      {error && (
+        <div className="flex items-center gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs">
+          <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+          {error}
         </div>
       )}
 

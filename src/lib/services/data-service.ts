@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase/client';
-import type { Portfolio, Position, Trade, WatchlistItem, Strategy, StrategyConfig, TradingMode } from '@/types';
+import type { Portfolio, Position, Trade, WatchlistItem, Strategy, StrategyConfig, TradingMode, Transaction } from '@/types';
 
 // ─── Portfolio ───────────────────────────────────────────
 export async function fetchPortfolio(userId: string, mode: TradingMode = 'paper'): Promise<Portfolio | null> {
@@ -33,6 +33,75 @@ export async function createPortfolio(
     .single();
   if (error) return null;
   return mapPortfolio(data);
+}
+
+// ─── Transactions (Deposit / Withdraw) ──────────────────
+
+export async function fetchTransactions(portfolioId: string): Promise<Transaction[]> {
+  const { data, error } = await supabase
+    .from('transactions')
+    .select('*')
+    .eq('portfolio_id', portfolioId)
+    .order('created_at', { ascending: false });
+  if (error) return [];
+  return (data ?? []).map(mapTransaction);
+}
+
+export async function depositFunds(
+  portfolioId: string,
+  userId: string,
+  amount: number,
+  currentBalance: number,
+  mode: TradingMode,
+  notes?: string,
+): Promise<{ transaction: Transaction | null; newBalance: number }> {
+  const newBalance = currentBalance + amount;
+  const { data, error } = await supabase
+    .from('transactions')
+    .insert({
+      portfolio_id: portfolioId,
+      user_id: userId,
+      type: 'deposit',
+      amount,
+      balance_before: currentBalance,
+      balance_after: newBalance,
+      mode,
+      notes: notes ?? null,
+    })
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+  return { transaction: mapTransaction(data), newBalance };
+}
+
+export async function withdrawFunds(
+  portfolioId: string,
+  userId: string,
+  amount: number,
+  currentBalance: number,
+  mode: TradingMode,
+  notes?: string,
+): Promise<{ transaction: Transaction | null; newBalance: number }> {
+  if (amount > currentBalance) {
+    throw new Error('Insufficient funds for withdrawal');
+  }
+  const newBalance = currentBalance - amount;
+  const { data, error } = await supabase
+    .from('transactions')
+    .insert({
+      portfolio_id: portfolioId,
+      user_id: userId,
+      type: 'withdraw',
+      amount,
+      balance_before: currentBalance,
+      balance_after: newBalance,
+      mode,
+      notes: notes ?? null,
+    })
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+  return { transaction: mapTransaction(data), newBalance };
 }
 
 export async function updatePortfolioBalance(
@@ -235,6 +304,74 @@ export async function deleteStrategy(id: string) {
   return supabase.from('strategies').delete().eq('id', id);
 }
 
+// ─── Signals (Live Trading) ──────────────────────────────
+import type { LiveSignal } from '@/types';
+
+export async function saveSignal(
+  userId: string,
+  strategyId: string,
+  portfolioId: string | null,
+  signal: LiveSignal,
+  mode: TradingMode = 'paper',
+) {
+  const { data, error } = await supabase
+    .from('signals')
+    .insert({
+      id: signal.id,
+      strategy_id: strategyId,
+      portfolio_id: portfolioId,
+      user_id: userId,
+      symbol: signal.symbol,
+      type: signal.type,
+      price: signal.price,
+      quantity: signal.quantity,
+      confidence: signal.confidence,
+      reason: signal.reason ?? null,
+      mode,
+      acknowledged: false,
+      executed: false,
+    })
+    .select()
+    .single();
+  if (error) return null;
+  return data;
+}
+
+export async function fetchSignals(
+  userId: string,
+  options?: { strategyId?: string; limit?: number; mode?: TradingMode },
+): Promise<LiveSignal[]> {
+  const limit = options?.limit ?? 50;
+  const mode = options?.mode ?? 'paper';
+  let query = supabase
+    .from('signals')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('mode', mode)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (options?.strategyId) {
+    query = query.eq('strategy_id', options.strategyId);
+  }
+  const { data, error } = await query;
+  if (error || !data) return [];
+  return data.map(mapSignal);
+}
+
+export async function acknowledgeSignal(signalId: string) {
+  return supabase
+    .from('signals')
+    .update({ acknowledged: true })
+    .eq('id', signalId);
+}
+
+export async function markSignalExecuted(signalId: string, tradeId: string) {
+  return supabase
+    .from('signals')
+    .update({ executed: true, trade_id: tradeId })
+    .eq('id', signalId);
+}
+
 // ─── Notifications ───────────────────────────────────────
 import type { Notification } from '@/types';
 
@@ -370,6 +507,21 @@ function mapStrategy(row: Record<string, unknown>): Strategy {
   };
 }
 
+function mapTransaction(row: Record<string, unknown>): Transaction {
+  return {
+    id: row.id as string,
+    portfolio_id: row.portfolio_id as string,
+    user_id: row.user_id as string,
+    type: row.type as 'deposit' | 'withdraw',
+    amount: Number(row.amount),
+    balance_before: Number(row.balance_before),
+    balance_after: Number(row.balance_after),
+    notes: row.notes as string | undefined,
+    mode: row.mode as TradingMode,
+    created_at: row.created_at as string,
+  };
+}
+
 function mapNotification(row: Record<string, unknown>): Notification {
   return {
     id: row.id as string,
@@ -379,5 +531,22 @@ function mapNotification(row: Record<string, unknown>): Notification {
     message: row.message as string,
     timestamp: row.created_at as string,
     read: Boolean(row.read),
+  };
+}
+
+function mapSignal(row: Record<string, unknown>): LiveSignal {
+  return {
+    id: row.id as string,
+    strategyId: row.strategy_id as string,
+    symbol: row.symbol as string,
+    type: row.type as 'buy' | 'sell',
+    price: Number(row.price),
+    quantity: Number(row.quantity),
+    confidence: Number(row.confidence),
+    reason: (row.reason as string) || '',
+    timestamp: row.created_at as string,
+    acknowledged: Boolean(row.acknowledged),
+    executed: Boolean(row.executed),
+    tradeId: row.trade_id as string | undefined,
   };
 }

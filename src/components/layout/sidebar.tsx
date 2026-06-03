@@ -14,26 +14,32 @@ import {
   BarChart3,
   Settings,
   Search,
+  Scan,
   ChevronLeft,
   ChevronRight,
   LogOut,
   FlaskConical,
   Zap,
+  Activity,
+  Sun,
+  Moon,
 } from 'lucide-react';
 
 const navItems = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/portfolio', label: 'Portfolio', icon: Briefcase },
   { href: '/market', label: 'Market', icon: TrendingUp },
+  { href: '/screener', label: 'Screener', icon: Scan },
   { href: '/trades', label: 'Trades', icon: ArrowLeftRight },
   { href: '/strategies', label: 'Strategies', icon: Lightbulb },
+  { href: '/monitor', label: 'Monitor', icon: Activity },
   { href: '/analytics', label: 'Analytics', icon: BarChart3 },
   { href: '/settings', label: 'Settings', icon: Settings },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { sidebarCollapsed, toggleSidebar, unreadCount, tradingMode, setTradingMode } =
+  const { sidebarCollapsed, toggleSidebar, unreadCount, tradingMode, setTradingMode, theme, toggleTheme, mobileSidebarOpen, setMobileSidebarOpen } =
     useAppStore();
   const { user, signOut } = useAuth();
 
@@ -42,12 +48,24 @@ export function Sidebar() {
   const avatarLetter = displayName.charAt(0).toUpperCase();
 
   return (
-    <aside
-      className={cn(
-        'shrink-0 h-screen bg-sidebar border-r border-card-border flex flex-col transition-all duration-200 sticky top-0',
-        sidebarCollapsed ? 'w-16' : 'w-56',
+    <>
+      {/* Mobile overlay */}
+      {mobileSidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+          onClick={() => setMobileSidebarOpen(false)}
+        />
       )}
-    >
+      <aside
+        className={cn(
+          'shrink-0 h-screen bg-sidebar border-r border-card-border flex flex-col transition-all duration-200 sticky top-0 z-50',
+          // Desktop
+          sidebarCollapsed ? 'w-16' : 'w-56',
+          // Mobile: off-canvas
+          'fixed inset-y-0 left-0 w-56 lg:static lg:translate-x-0',
+          mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
+        )}
+      >
       {/* Logo */}
       <div className="flex items-center h-14 px-4 border-b border-card-border">
         <div className="flex items-center gap-3 min-w-0">
@@ -168,6 +186,25 @@ export function Sidebar() {
         )}
       </div>
 
+      {/* Theme Toggle */}
+      <div className="px-2 pb-1">
+        <button
+          onClick={toggleTheme}
+          className={cn(
+            'w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:text-zinc-200 hover:bg-sidebar-hover transition-colors cursor-pointer',
+            sidebarCollapsed && 'justify-center px-0',
+          )}
+          title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+        >
+          {theme === 'dark' ? (
+            <Sun className="w-4.5 h-4.5 shrink-0" />
+          ) : (
+            <Moon className="w-4.5 h-4.5 shrink-0" />
+          )}
+          {!sidebarCollapsed && <span>{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>}
+        </button>
+      </div>
+
       {/* User Footer */}
       <div className="p-2 border-t border-card-border space-y-1">
         <div
@@ -201,5 +238,6 @@ export function Sidebar() {
         )}
       </div>
     </aside>
+    </>
   );
 }

@@ -25,6 +25,14 @@ interface AppState {
   // Trading Mode
   tradingMode: TradingMode;
   setTradingMode: (mode: TradingMode) => void;
+
+  // Mobile sidebar
+  mobileSidebarOpen: boolean;
+  setMobileSidebarOpen: (open: boolean) => void;
+
+  // Theme
+  theme: 'dark' | 'light';
+  toggleTheme: () => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -100,5 +108,32 @@ export const useAppStore = create<AppState>((set, get) => ({
     } catch {
       /* ignore */
     }
+  },
+
+  // Mobile sidebar
+  mobileSidebarOpen: false,
+  setMobileSidebarOpen: (open) => set({ mobileSidebarOpen: open }),
+
+  // Theme
+  theme: (() => {
+    if (typeof window === 'undefined') return 'dark';
+    try {
+      const saved = localStorage.getItem('tradepilot:theme');
+      if (saved === 'dark' || saved === 'light') return saved;
+    } catch {
+      /* ignore */
+    }
+    return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+  })(),
+  toggleTheme: () => {
+    set((state) => {
+      const next = state.theme === 'dark' ? 'light' : 'dark';
+      try {
+        localStorage.setItem('tradepilot:theme', next);
+      } catch {
+        /* ignore */
+      }
+      return { theme: next };
+    });
   },
 }));

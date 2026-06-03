@@ -6,6 +6,8 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useStrategiesData } from '@/lib/hooks/use-strategies-data';
 import { formatCurrency, formatPercent, pnlColor } from '@/lib/utils';
+import { StrategyWizard } from '@/components/strategies/strategy-wizard';
+import type { StrategyTemplate } from '@/lib/strategy-templates';
 import type {
   StrategyConfig,
   Timeframe,
@@ -45,6 +47,7 @@ import {
   Search,
   Trash2,
   Settings2,
+  Sparkles,
 } from 'lucide-react';
 
 const statusIcons: Record<string, React.ReactNode> = {
@@ -562,6 +565,7 @@ export default function StrategiesPage() {
   const router = useRouter();
   const { strategies, isLoading, upsertStrategy, deleteStrategy, isSaving } = useStrategiesData();
   const [showModal, setShowModal] = useState(false);
+  const [showWizard, setShowWizard] = useState(false);
   const [formName, setFormName] = useState('');
   const [formDesc, setFormDesc] = useState('');
   const [formType, setFormType] = useState<StrategyConfig['type']>('trend_following');
@@ -695,6 +699,22 @@ export default function StrategiesPage() {
     setShowModal(false);
   };
 
+  const handleWizardSelect = (template: StrategyTemplate, customName: string, customDesc: string) => {
+    setFormName(customName || template.name);
+    setFormDesc(customDesc || template.description);
+    setFormType(template.config.type);
+    setFormStatus('draft');
+    setFormTimeframes(template.config.timeframes);
+    setFormSymbols(template.config.symbols || []);
+    setFormIndicators(template.config.indicators || []);
+    setFormEntryRules(template.config.entryRules || []);
+    setFormExitRules(template.config.exitRules || []);
+    setFormRiskPerTrade(template.config.riskPerTrade || 1);
+    setFormMaxPositions(template.config.maxPositions || 5);
+    setShowWizard(false);
+    setShowModal(true);
+  };
+
   // ─── Count selected config items for preview ───────────────
   const configSummary = [
     formTimeframes.length > 0 && `${formTimeframes.length} timeframe${formTimeframes.length > 1 ? 's' : ''}`,
@@ -711,10 +731,19 @@ export default function StrategiesPage() {
           <h1 className="text-2xl font-bold text-white">Strategies</h1>
           <p className="text-sm text-zinc-400 mt-0.5">Design and test trading strategies</p>
         </div>
-        <Button onClick={() => setShowModal(true)}>
-          <Plus className="w-4 h-4" />
-          New Strategy
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="secondary"
+            onClick={() => setShowWizard(true)}
+          >
+            <Sparkles className="w-4 h-4" />
+            From Template
+          </Button>
+          <Button onClick={() => setShowModal(true)}>
+            <Plus className="w-4 h-4" />
+            Manual Setup
+          </Button>
+        </div>
       </div>
 
       {/* Strategy Cards */}
@@ -824,11 +853,17 @@ export default function StrategiesPage() {
             <div className="py-12 text-center">
               <Target className="w-10 h-10 text-zinc-600 mx-auto mb-4" />
               <h3 className="text-lg font-semibold text-zinc-300 mb-1">No Strategies Yet</h3>
-              <p className="text-sm text-zinc-500 mb-4">Create your first trading strategy to start backtesting.</p>
-              <Button onClick={() => setShowModal(true)}>
-                <Plus className="w-4 h-4" />
-                Create Strategy
-              </Button>
+              <p className="text-sm text-zinc-500 mb-4">Start with a template or build a custom strategy from scratch.</p>
+              <div className="flex items-center justify-center gap-3">
+                <Button variant="secondary" onClick={() => setShowWizard(true)}>
+                  <Sparkles className="w-4 h-4" />
+                  From Template
+                </Button>
+                <Button onClick={() => setShowModal(true)}>
+                  <Plus className="w-4 h-4" />
+                  Manual Setup
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -1329,6 +1364,15 @@ export default function StrategiesPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Strategy Wizard (Template Picker) */}
+      {showWizard && (
+        <StrategyWizard
+          open={showWizard}
+          onSelect={handleWizardSelect}
+          onClose={() => setShowWizard(false)}
+        />
       )}
     </div>
   );
